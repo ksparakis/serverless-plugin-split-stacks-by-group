@@ -6,3 +6,6 @@ coverage
 .eslintrc
 .gitignore
 *.log
+
+# Local release tarballs (npm pack output); they were being published inside the package.
+*.tgz
