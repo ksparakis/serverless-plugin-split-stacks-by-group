@@ -6,7 +6,6 @@
   "scripts": {
     "coverage": "nyc --all npm test",
     "lint": "eslint .",
-    "postpublish": "git push origin master --tags",
     "test": "ava",
     "integration-test": "zx __tests__/_integration.mjs"
   },
