@@ -102,3 +102,43 @@ test('creates multiple nested stack chains if enabled with parallel deployments'
   t.is(7, countDependsOn(t.context.rootTemplate.Resources));
   t.true(doesNotBecomeCircular(t.context.rootTemplate.Resources));
 });
+
+const isAcyclic = function (resources) {
+  const state = {};
+  const visit = name => {
+    if (state[name] === 1) return false;
+    if (state[name] === 2) return true;
+    state[name] = 1;
+    const ok = [].concat((resources[name] || {}).DependsOn || []).every(visit);
+    state[name] = 2;
+    return ok;
+  };
+  return Object.keys(resources).every(visit);
+};
+
+test('skips a chain link that would close a loop with a cross-stack dependency', t => {
+  t.context.config.stackConcurrency = 3;
+  // 2 takes an output of 8; the chain 8 -> 5 -> 2 would make 8 wait on 2 as well.
+  t.context.rootTemplate.Resources['2NestedStack'].DependsOn = ['8NestedStack'];
+
+  t.context.sequenceStacks();
+
+  const resources = t.context.rootTemplate.Resources;
+  t.true(isAcyclic(resources));
+  t.deepEqual(resources['8NestedStack'].DependsOn, undefined);
+  t.deepEqual(resources['5NestedStack'].DependsOn, ['2NestedStack']);
+  t.deepEqual(resources['2NestedStack'].DependsOn, ['8NestedStack']);
+  // Unrelated chains are untouched.
+  t.deepEqual(resources['7NestedStack'].DependsOn, ['4NestedStack']);
+});
+
+test('sees dependencies carried by Fn::GetAtt in nested stack parameters', t => {
+  t.context.config.stackConcurrency = 3;
+  t.context.rootTemplate.Resources['2NestedStack'].Properties = {
+    Parameters: { ProductsOutput: { 'Fn::GetAtt': ['8NestedStack', 'Outputs.Arn'] } },
+  };
+
+  t.context.sequenceStacks();
+
+  t.is(t.context.rootTemplate.Resources['8NestedStack'].DependsOn, undefined);
+});
